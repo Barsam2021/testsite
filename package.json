@@ -6,16 +6,25 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "node scripts/migrate.mjs",
+    "test:auction": "tsc lib/auction.ts lib/money.ts --outDir .tmp-test --module commonjs --target es2022 --skipLibCheck --esModuleInterop --moduleResolution node && node scripts/test-auction.mjs"
   },
   "dependencies": {
+    "@vercel/blob": "^2.8.0",
     "next": "15.5.22",
+    "pg": "^8.13.1",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "stripe": "^22.6.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
     "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "^20.14.10",
+    "@types/pg": "^8.11.10",
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.1",
     "tailwindcss": "^4.1.13",

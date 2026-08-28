@@ -1,36 +1,11 @@
-"use client";
+import { loadPageData } from "@/lib/public-data";
+import { Auction } from "@/components/Auction";
 
-import { useState } from "react";
-import type { Spot } from "@/lib/spots";
-import { CurrencyProvider } from "@/components/CurrencyContext";
-import { Nav } from "@/components/Nav";
-import { Hero } from "@/components/Hero";
-import { DarkPitch } from "@/components/DarkPitch";
-import { Spots } from "@/components/Spots";
-import { HowItWorks } from "@/components/HowItWorks";
-import { Specs } from "@/components/Specs";
-import { Faq } from "@/components/Faq";
-import { Waitlist } from "@/components/Waitlist";
-import { Footer } from "@/components/Footer";
-import { BidDialog } from "@/components/BidDialog";
+// Die Seite zeigt Gebotsstände — sie darf nie aus dem Cache kommen.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-export default function Page() {
-  const [bidding, setBidding] = useState<Spot | null>(null);
-
-  return (
-    <CurrencyProvider>
-      <Nav />
-      <main>
-        <Hero onBid={setBidding} />
-        <DarkPitch />
-        <Spots onBid={setBidding} />
-        <HowItWorks />
-        <Specs />
-        <Faq />
-        <Waitlist />
-      </main>
-      <Footer />
-      <BidDialog spot={bidding} onClose={() => setBidding(null)} />
-    </CurrencyProvider>
-  );
+export default async function Page() {
+  const data = await loadPageData();
+  return <Auction data={data} />;
 }

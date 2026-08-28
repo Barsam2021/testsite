@@ -1,11 +1,11 @@
 "use client";
 
-import { SPOTS, type Spot } from "@/lib/spots";
-import { useCurrency } from "./CurrencyContext";
+import type { BoardSpot } from "@/lib/auction";
+import { useCurrency } from "./Currency";
 import { AppleGlyph } from "./AppleGlyph";
 
-/** Marker für ein eingegangenes, noch nicht freigegebenes Gebot */
-function PendingMark() {
+/** Zeigt an: auf diesem Platz liegt ein höheres Gebot, das noch geprüft wird. */
+function ReviewMark() {
   return (
     <span
       aria-hidden="true"
@@ -13,7 +13,6 @@ function PendingMark() {
     >
       <svg
         viewBox="0 0 24 24"
-        aria-hidden="true"
         className="h-2.5 w-2.5 sm:h-3 sm:w-3"
         fill="none"
         stroke="currentColor"
@@ -29,55 +28,75 @@ function PendingMark() {
   );
 }
 
-function SpotButton({ spot, onBid }: { spot: Spot; onBid: (s: Spot) => void }) {
+function SpotButton({
+  spot,
+  onBid,
+  closed,
+}: {
+  spot: BoardSpot;
+  onBid: (s: BoardSpot) => void;
+  closed: boolean;
+}) {
   const { money } = useCurrency();
-  const sponsor = spot.sponsor;
-  const label = sponsor
-    ? `Spot ${spot.id}, ${spot.name}, ${spot.sizeLabel}. Reserved by ${sponsor.name} at ${money(spot.bid)}. Outbid.`
-    : `Spot ${spot.id}, ${spot.name}, ${spot.sizeLabel}. Free from ${money(spot.bid)}. Place a bid.`;
+  const lead = spot.lead;
+
+  const label = lead
+    ? `Spot ${spot.id}, ${spot.label}. Held by ${lead.sponsor_name} at ${money(lead.amount_cents)}.`
+    : `Spot ${spot.id}, ${spot.label}. Free, from ${money(spot.min_next_cents)}.`;
 
   return (
     <button
       type="button"
       aria-label={label}
       onClick={() => onBid(spot)}
-      className="group relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-black/25 bg-black/[0.02] text-ink transition-colors hover:border-black/45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue"
+      disabled={closed}
+      className="group relative flex h-full w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-black/25 bg-black/[0.02] text-ink transition-colors hover:border-black/45 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue disabled:cursor-default"
     >
-      <span className="flex h-full w-full flex-col items-center justify-end gap-1 px-1.5 py-2 transition duration-200 group-hover:blur-[3px] group-focus-visible:blur-[3px]">
+      <span className="flex h-full w-full flex-col items-center justify-end gap-1 px-1.5 py-2 transition duration-200 group-hover:blur-[3px] group-focus-visible:blur-[3px] group-disabled:blur-0">
         <span className="relative flex min-h-0 w-full flex-1 items-center justify-center">
-          {sponsor ? (
+          {lead?.logo_url ? (
             <img
-              src={sponsor.logo}
+              src={lead.logo_url}
               alt=""
               className="absolute inset-0 m-auto max-h-[70%] max-w-[88%] object-contain"
             />
           ) : null}
         </span>
-        {sponsor && !sponsor.logoOnly ? (
+        {lead ? (
           <span className="max-w-full shrink-0 truncate text-[10px] font-semibold leading-tight sm:text-[13px]">
-            {sponsor.name}
+            {lead.sponsor_name}
           </span>
         ) : null}
         <span className="shrink-0 text-[11px] font-medium leading-tight tabular-nums text-ink-2 sm:text-[14px]">
-          {money(spot.bid)}
+          {lead ? money(lead.amount_cents) : `from ${money(spot.min_next_cents)}`}
         </span>
       </span>
 
-      {spot.pending ? <PendingMark /> : null}
+      {spot.review_amount_cents ? <ReviewMark /> : null}
 
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100"
-      >
-        <span className="rounded-full bg-blue px-3 py-1.5 text-[11px] font-medium text-white sm:px-4 sm:text-[13px]">
-          {sponsor ? "Outbid" : "Take it"}
+      {!closed && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100"
+        >
+          <span className="rounded-full bg-blue px-3 py-1.5 text-[11px] font-medium text-white sm:px-4 sm:text-[13px]">
+            {lead ? "Outbid" : "Take it"}
+          </span>
         </span>
-      </span>
+      )}
     </button>
   );
 }
 
-export function Lid({ onBid }: { onBid: (s: Spot) => void }) {
+export function Lid({
+  spots,
+  onBid,
+  closed,
+}: {
+  spots: BoardSpot[];
+  onBid: (s: BoardSpot) => void;
+  closed: boolean;
+}) {
   return (
     <div className="relative mx-auto mt-12 aspect-[1.5] w-full max-w-[900px] md:mt-14">
       <div className="absolute inset-0 m-auto flex w-full max-w-[860px] flex-col justify-center">
@@ -91,7 +110,6 @@ export function Lid({ onBid }: { onBid: (s: Spot) => void }) {
               "inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -1px 0 rgba(0,0,0,0.18), 0 30px 60px -18px rgba(0,0,0,0.28), 0 12px 24px -12px rgba(0,0,0,0.18)",
           }}
         >
-          {/* Glanz auf dem Aluminium */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 rounded-[inherit]"
@@ -101,7 +119,7 @@ export function Lid({ onBid }: { onBid: (s: Spot) => void }) {
             }}
           />
 
-          {/* Apple-Logo, liegt über dem Raster und wird nicht verkauft */}
+          {/* Das Apple-Logo liegt über dem Raster und wird nicht verkauft. */}
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
             <div aria-hidden="true" className="w-[15.6%]">
               <AppleGlyph className="w-full text-[#3b3b3f] [filter:drop-shadow(0_1px_0_rgba(255,255,255,0.6))]" />
@@ -115,9 +133,9 @@ export function Lid({ onBid }: { onBid: (s: Spot) => void }) {
               gridTemplateRows: "minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1fr)",
             }}
           >
-            {SPOTS.map((spot) => (
-              <div key={spot.id} style={{ gridArea: spot.area }}>
-                <SpotButton spot={spot} onBid={onBid} />
+            {spots.map((spot) => (
+              <div key={spot.id} style={{ gridArea: spot.grid_area }}>
+                <SpotButton spot={spot} onBid={onBid} closed={closed} />
               </div>
             ))}
           </div>

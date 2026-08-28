@@ -1,50 +1,115 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Spot } from "@/lib/spots";
-import { useCurrency } from "./CurrencyContext";
+import type { BoardSpot, Settings } from "@/lib/auction";
+import { centsToUnits, depositFor, unitsToCents } from "@/lib/money";
+import { useCurrency } from "./Currency";
 
-/** Mindestschritt und Anzahlung wie in der FAQ des Originals */
-export const MIN_INCREMENT = 10;
-export const DEPOSIT_RATE = 0.2;
-export const MIN_DEPOSIT = 10;
+type Props = {
+  spot: BoardSpot | null;
+  settings: Settings;
+  onClose: () => void;
+};
 
-export function BidDialog({ spot, onClose }: { spot: Spot | null; onClose: () => void }) {
+export function BidDialog({ spot, settings, onClose }: Props) {
   const { money } = useCurrency();
-  const ref = useRef<HTMLDivElement>(null);
-  const minBid = spot ? spot.bid + MIN_INCREMENT : 0;
-  const [amount, setAmount] = useState(minBid);
+  const panel = useRef<HTMLDivElement>(null);
+
+  const [amount, setAmount] = useState(0);
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [email, setEmail] = useState("");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoName, setLogoName] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (spot) setAmount(spot.bid + MIN_INCREMENT);
+    if (!spot) return;
+    setAmount(centsToUnits(spot.min_next_cents));
+    setError(null);
   }, [spot]);
 
   useEffect(() => {
     if (!spot) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
-    ref.current?.focus();
-    return () => document.removeEventListener("keydown", onKey);
+    panel.current?.focus();
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
   }, [spot, onClose]);
 
   if (!spot) return null;
 
-  const deposit = Math.max(MIN_DEPOSIT, Math.round(amount * DEPOSIT_RATE));
-  const tooLow = amount < minBid;
+  const amountCents = unitsToCents(amount || 0);
+  const tooLow = amountCents < spot.min_next_cents;
+  const deposit = depositFor(amountCents, settings.deposit_bps, settings.min_deposit_cents);
+  const canSubmit = !tooLow && name.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  async function uploadLogo(file: File) {
+    setUploading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Upload fehlgeschlagen.");
+      setLogoUrl(json.url);
+      setLogoName(file.name);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload fehlgeschlagen.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function submit() {
+    setSending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/bid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          spot_id: spot!.id,
+          amount,
+          sponsor_name: name,
+          sponsor_url: url,
+          sponsor_email: email,
+          logo_url: logoUrl,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        if (json.min_next_cents) setAmount(centsToUnits(json.min_next_cents));
+        throw new Error(json.error ?? "Das Gebot ging nicht durch.");
+      }
+      window.location.href = json.checkout_url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Das Gebot ging nicht durch.");
+      setSending(false);
+    }
+  }
+
+  const field =
+    "w-full rounded-xl border border-hairline bg-white px-4 py-3 text-[15px] outline-none transition-shadow placeholder:text-ink-2/70 focus:border-blue focus:ring-4 focus:ring-blue/15";
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/30 backdrop-blur-sm sm:items-center sm:p-6"
       onClick={onClose}
     >
       <div
-        ref={ref}
+        ref={panel}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label={`Bid on spot ${spot.id}`}
+        aria-label={`Bid on ${spot.label}`}
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.4)] outline-none sm:rounded-3xl sm:p-8"
       >
@@ -54,9 +119,9 @@ export function BidDialog({ spot, onClose }: { spot: Spot | null; onClose: () =>
               <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-hairline/80 text-[11px] font-semibold tabular-nums">
                 {spot.id}
               </span>
-              {spot.sizeLabel} · {spot.dims}
+              {spot.size === "L" ? "Large" : spot.size === "M" ? "Medium" : "Small"} · {spot.dims}
             </p>
-            <h3 className="mt-1.5 text-xl font-semibold tracking-[-0.015em]">{spot.name}</h3>
+            <h3 className="mt-1.5 text-xl font-semibold tracking-[-0.015em]">{spot.label}</h3>
           </div>
           <button
             type="button"
@@ -70,45 +135,101 @@ export function BidDialog({ spot, onClose }: { spot: Spot | null; onClose: () =>
           </button>
         </div>
 
-        <dl className="mt-6 space-y-2 text-[14px]">
+        <dl className="mt-5 space-y-2 border-b border-hairline/60 pb-5 text-[14px]">
           <div className="flex justify-between">
-            <dt className="text-ink-2">Current bid</dt>
-            <dd className="font-medium tabular-nums">{money(spot.bid)}</dd>
+            <dt className="text-ink-2">{spot.lead ? "Current bid" : "Starting price"}</dt>
+            <dd className="font-medium tabular-nums">
+              {money(spot.lead ? spot.lead.amount_cents : spot.start_price_cents)}
+            </dd>
           </div>
+          {spot.review_amount_cents ? (
+            <div className="flex justify-between">
+              <dt className="text-ink-2">Under review</dt>
+              <dd className="font-medium tabular-nums text-blue">{money(spot.review_amount_cents)}</dd>
+            </div>
+          ) : null}
           <div className="flex justify-between">
             <dt className="text-ink-2">Minimum next bid</dt>
-            <dd className="font-medium tabular-nums">{money(minBid)}</dd>
+            <dd className="font-medium tabular-nums">{money(spot.min_next_cents)}</dd>
           </div>
         </dl>
 
-        <label className="mt-6 block text-[13px] font-medium" htmlFor="bid-amount">
-          Your bid
-        </label>
-        <input
-          id="bid-amount"
-          type="number"
-          min={minBid}
-          step={MIN_INCREMENT}
-          value={amount}
-          onChange={(e) => setAmount(Number(e.target.value))}
-          className="mt-1.5 w-full rounded-xl border border-hairline bg-white px-4 py-3 text-[15px] tabular-nums outline-none transition-shadow focus:border-blue focus:ring-4 focus:ring-blue/15"
-        />
-        {tooLow && (
-          <p className="mt-2 text-[13px] text-ink-2">
-            Outbids need to beat the current bid by at least {money(MIN_INCREMENT)}.
-          </p>
+        <div className="mt-5 space-y-3">
+          <div>
+            <label className="block text-[13px] font-medium" htmlFor="bid-amount">
+              Your bid ({settings.currency === "eur" ? "€" : "$"})
+            </label>
+            <input
+              id="bid-amount"
+              type="number"
+              inputMode="numeric"
+              min={centsToUnits(spot.min_next_cents)}
+              step={centsToUnits(settings.min_increment_cents)}
+              value={amount}
+              onChange={(e) => setAmount(Number(e.target.value))}
+              className={`mt-1.5 tabular-nums ${field}`}
+            />
+          </div>
+
+          <input
+            className={field}
+            placeholder="brand or company name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-label="Brand name"
+          />
+          <input
+            className={field}
+            placeholder="your website (optional)"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            aria-label="Website"
+          />
+          <input
+            className={field}
+            type="email"
+            placeholder="your email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-label="Email"
+          />
+
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-dashed border-hairline px-4 py-3 text-[14px] transition-colors hover:border-blue">
+            <span className="min-w-0 truncate text-ink-2">
+              {uploading ? "Uploading…" : logoName || "Logo (PNG, SVG, max 2 MB)"}
+            </span>
+            <span className="shrink-0 text-[13px] font-medium text-blue">
+              {logoUrl ? "Replace" : "Choose"}
+            </span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void uploadLogo(f);
+              }}
+            />
+          </label>
+        </div>
+
+        {error && (
+          <p className="mt-4 rounded-xl bg-surface px-4 py-3 text-[13px] leading-relaxed">{error}</p>
         )}
 
         <button
           type="button"
-          disabled={tooLow}
+          disabled={!canSubmit || sending || uploading}
+          onClick={submit}
           className="mt-5 w-full rounded-full bg-blue px-6 py-3.5 text-[15px] font-medium text-white transition-colors hover:bg-blue-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue disabled:opacity-60"
         >
-          Pay {money(deposit)} deposit
+          {sending ? "Taking you to checkout…" : `Pay ${money(deposit)} deposit`}
         </button>
+
         <p className="mt-3 text-[13px] leading-relaxed text-ink-2">
-          Bidding takes a 20% deposit (minimum {money(MIN_DEPOSIT)}), paid by card. If you
-          don&rsquo;t win, it comes back in full, automatically.
+          Bidding takes a {settings.deposit_bps / 100}% deposit (minimum{" "}
+          {money(settings.min_deposit_cents)}), paid by card. If you don&rsquo;t win, it comes back
+          in full. Every sponsor is approved by hand before anything appears on the lid.
         </p>
       </div>
     </div>

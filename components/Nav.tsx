@@ -1,6 +1,6 @@
 "use client";
 
-import { useCurrency } from "./CurrencyContext";
+import { useCurrency } from "./Currency";
 import { Wordmark } from "./Wordmark";
 
 const LINKS = [
@@ -10,8 +10,10 @@ const LINKS = [
   { href: "#faq", label: "FAQ" },
 ];
 
-export function Nav() {
+export function Nav({ base }: { base: "eur" | "usd" }) {
   const { currency, setCurrency } = useCurrency();
+  const other = base === "eur" ? "usd" : "eur";
+  const symbol = (c: string) => (c === "eur" ? "€" : "$");
 
   return (
     <nav className="sticky top-0 z-40 border-b border-hairline/70 bg-white/70 backdrop-blur-xl">
@@ -35,14 +37,14 @@ export function Nav() {
             aria-label="Display currency"
             className="flex rounded-full bg-hairline/50 p-0.5 text-[12px] font-medium"
           >
-            {(["EUR", "USD"] as const).map((c) => {
+            {[base, other].map((c) => {
               const active = currency === c;
               return (
                 <button
                   key={c}
                   type="button"
                   aria-pressed={active}
-                  onClick={() => setCurrency(c)}
+                  onClick={() => setCurrency(c as "eur" | "usd")}
                   className={
                     "rounded-full px-2.5 py-1 transition-colors " +
                     (active
@@ -50,7 +52,7 @@ export function Nav() {
                       : "text-ink-2 hover:text-ink")
                   }
                 >
-                  {c === "EUR" ? "€" : "$"}
+                  {symbol(c)}
                 </button>
               );
             })}
