@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme {
+  /* Farbtokens — 1:1 die Rollen aus dem Original (Apple-Systempalette) */
+  --color-ink: #1d1d1f;
+  --color-ink-2: #6e6e73;
+  --color-hairline: #d2d2d7;
+  --color-surface: #f5f5f7;
+  --color-blue: #0071e3;
+  --color-blue-hover: #0077ed;
+  --color-green: #1d8f4b;
+  --color-apple-green: #34c759;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --spacing-13: 3.25rem;
+}
+
+:root {
+  /* Aluminium-Verlauf des Deckels */
+  --lid-1: #eceef0;
+  --lid-2: #dfe1e4;
+  --lid-3: #c5c8cd;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: #ffffff;
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
