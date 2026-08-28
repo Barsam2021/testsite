@@ -75,7 +75,17 @@ Stripe kontrollieren.
 ### 3. Logo-Uploads (Vercel Blob)
 
 Im Vercel-Projekt unter *Storage* einen Blob-Store anlegen. `BLOB_READ_WRITE_TOKEN`
-setzt Vercel selbst. Erlaubt sind PNG, JPG, WEBP und SVG bis 2 MB.
+setzt Vercel selbst. Erlaubt sind **PNG, JPG und WEBP** bis 2 MB — erkannt an der
+Dateisignatur, nicht an der Angabe des Browsers.
+
+SVG ist bewusst ausgeschlossen: eine SVG-Datei darf Skript enthalten, das beim
+direkten Aufruf im Ablage-Host ausgeführt wird. Da der Upload offen sein muss
+(Bieter haben kein Konto, bevor sie zahlen), wäre das ein offener Skript-Hoster
+auf einer Domain, die zur Seite gehört.
+
+Die Adresse eines Logos wird beim Gebot noch einmal serverseitig geprüft: erlaubt
+sind nur eigene Pfade und https-Adressen auf dem Blob-Host (erweiterbar über
+`LOGO_HOST_ALLOWLIST`). Sie landet sonst als Linkziel im Admin.
 
 ### 4. Admin
 
@@ -91,7 +101,11 @@ alle Sitzungen ab.
 
 `vercel.json` meldet einen stündlichen Cron auf `/api/cron/close` an. Der lässt
 abgebrochene Bezahlvorgänge verfallen und schließt die Auktion, sobald der
-Endzeitpunkt erreicht ist. `CRON_SECRET` setzen, damit ihn sonst niemand auslöst.
+Endzeitpunkt erreicht ist.
+
+`CRON_SECRET` ist **Pflicht**: fehlt es, lehnt der Endpunkt jeden Aufruf mit 503
+ab, statt für alle offen zu stehen — und die Auktion schließt sich dann nicht von
+selbst.
 
 Das Ende hängt damit am Server, nicht am Countdown im Browser.
 

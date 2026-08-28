@@ -13,9 +13,14 @@ export const dynamic = "force-dynamic";
  * Das Ende hängt damit nicht am Countdown im Browser.
  */
 export async function GET(request: Request) {
+  // Fehlt das Geheimnis, wird abgelehnt statt geöffnet: der Endpunkt ändert
+  // Zustand und darf nicht versehentlich für alle erreichbar sein.
   const expected = process.env.CRON_SECRET;
-  const given = request.headers.get("authorization");
-  if (expected && given !== `Bearer ${expected}`) {
+  if (!expected) {
+    console.error("[cron] CRON_SECRET fehlt — Aufruf abgelehnt");
+    return NextResponse.json({ error: "Not configured" }, { status: 503 });
+  }
+  if (request.headers.get("authorization") !== `Bearer ${expected}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

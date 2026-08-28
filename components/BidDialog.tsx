@@ -196,14 +196,14 @@ export function BidDialog({ spot, settings, onClose }: Props) {
 
           <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-dashed border-hairline px-4 py-3 text-[14px] transition-colors hover:border-blue">
             <span className="min-w-0 truncate text-ink-2">
-              {uploading ? "Uploading…" : logoName || "Logo (PNG, SVG, max 2 MB)"}
+              {uploading ? "Uploading…" : logoName || "Logo (PNG, JPG, WEBP — max 2 MB)"}
             </span>
             <span className="shrink-0 text-[13px] font-medium text-blue">
               {logoUrl ? "Replace" : "Choose"}
             </span>
             <input
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              accept="image/png,image/jpeg,image/webp"
               className="sr-only"
               onChange={(e) => {
                 const f = e.target.files?.[0];

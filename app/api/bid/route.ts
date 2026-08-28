@@ -3,6 +3,7 @@ import { withTx } from "@/lib/db";
 import { attachSession, createPendingBid, getSettings } from "@/lib/auction";
 import { createDepositCheckout } from "@/lib/stripe";
 import { unitsToCents } from "@/lib/money";
+import { isAllowedLogoUrl } from "@/lib/logo-url";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +44,14 @@ export async function POST(request: Request) {
   if (url && !/^https?:\/\//i.test(url)) url = `https://${url}`;
   if (url && !/^https?:\/\/[^\s]+\.[^\s]+$/i.test(url)) {
     return NextResponse.json({ error: "Die Website-Adresse sieht nicht gültig aus." }, { status: 400 });
+  }
+  // Nur Adressen aus dem eigenen Upload akzeptieren — der Wert wird später
+  // als Bildquelle und im Admin als Link ausgegeben.
+  if (logoUrl && !isAllowedLogoUrl(logoUrl)) {
+    return NextResponse.json(
+      { error: "Bitte das Logo über das Formular hochladen." },
+      { status: 400 },
+    );
   }
 
   try {

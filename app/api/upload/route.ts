@@ -5,12 +5,22 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_BYTES = 2 * 1024 * 1024;
-const ALLOWED: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/webp": "webp",
-  "image/svg+xml": "svg",
-};
+
+/**
+ * SVG ist bewusst nicht dabei: eine SVG-Datei darf Skript enthalten und wird
+ * beim direkten Aufruf im Ablage-Host ausgeführt. Da der Endpunkt offen sein
+ * muss — Bieter haben kein Konto, bevor sie zahlen — wäre das ein offener
+ * Skript-Hoster auf einer Domain, die zur Seite gehört.
+ */
+const ALLOWED = [
+  { type: "image/png", ext: "png", magic: [0x89, 0x50, 0x4e, 0x47] },
+  { type: "image/jpeg", ext: "jpg", magic: [0xff, 0xd8, 0xff] },
+  { type: "image/webp", ext: "webp", magic: [0x52, 0x49, 0x46, 0x46] },
+] as const;
+
+function matches(bytes: Uint8Array, magic: readonly number[]): boolean {
+  return magic.every((b, i) => bytes[i] === b);
+}
 
 export async function POST(request: Request) {
   let form: FormData;
@@ -24,23 +34,24 @@ export async function POST(request: Request) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "Keine Datei empfangen." }, { status: 400 });
   }
-  if (file.size > MAX_BYTES) {
+  if (file.size === 0 || file.size > MAX_BYTES) {
     return NextResponse.json({ error: "Das Logo darf höchstens 2 MB groß sein." }, { status: 400 });
   }
-  const ext = ALLOWED[file.type];
-  if (!ext) {
-    return NextResponse.json(
-      { error: "Erlaubt sind PNG, JPG, WEBP und SVG." },
-      { status: 400 },
-    );
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  // Nach dem Inhalt gehen, nicht nach der Angabe des Browsers: file.type
+  // kommt vom Absender und lässt sich frei setzen.
+  const kind = ALLOWED.find((a) => matches(bytes, a.magic));
+  if (!kind) {
+    return NextResponse.json({ error: "Erlaubt sind PNG, JPG und WEBP." }, { status: 400 });
   }
 
   try {
-    const blob = await put(`logos/${crypto.randomUUID()}.${ext}`, file, {
+    const blob = await put(`logos/${crypto.randomUUID()}.${kind.ext}`, Buffer.from(bytes), {
       access: "public",
-      contentType: file.type,
-      // Der Dateiname kommt vom Nutzer; ein fester Zufallsname verhindert,
-      // dass jemand fremde Uploads überschreibt.
+      // Der Ausliefer-Typ kommt aus der erkannten Signatur, nicht aus der Anfrage.
+      contentType: kind.type,
       addRandomSuffix: false,
     });
     return NextResponse.json({ url: blob.url });
